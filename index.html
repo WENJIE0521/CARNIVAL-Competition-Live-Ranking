@@ -114,14 +114,9 @@
                     <p class="text-xs text-gray-500">实时排行榜 · 谁是终极吃货王！</p>
                 </div>
             </div>
-
-            <!-- Header Controls & Deploy Modal Button -->
+            <!-- Header Controls -->
             <div class="flex items-center gap-2 flex-wrap justify-center">
-                <button onclick="openDeployGuide()" class="px-3 py-2 bg-macaron-mintDark hover:bg-emerald-300 text-emerald-900 font-bold text-xs rounded-xl transition-all flex items-center gap-1 shadow-sm">
-                    <i class="fa-solid fa-cloud-arrow-up"></i> 部署上线指南
-                </button>
-
-                <!-- View Switcher -->
+<!-- View Switcher -->
                 <div class="bg-macaron-softPink p-1.5 rounded-2xl flex gap-2 border-2 border-macaron-pink/40 shadow-inner">
                     <button id="tab-live" onclick="switchView('live')" class="px-4 py-2 rounded-xl font-bold text-sm transition-all duration-300 flex items-center gap-2 bg-macaron-pink text-white shadow-sm">
                         <i class="fa-solid fa-trophy text-yellow-300"></i> 观众看台
@@ -317,47 +312,6 @@
                     <button type="submit" class="w-1/2 py-2.5 bg-macaron-pink hover:bg-macaron-accent text-white font-bold rounded-xl text-sm shadow-sm">保存更新</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Modal: Deploy Guide & Upload Online Instructions -->
-    <div id="deploy-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl max-w-lg w-full p-6 border-4 border-macaron-pink shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onclick="closeDeployGuide()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-lg">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            <div class="text-center mb-4">
-                <div class="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 text-2xl mx-auto mb-2">
-                    🚀
-                </div>
-                <h3 class="font-zcool text-xl text-emerald-700">将网站免费发布上线供多人观看</h3>
-                <p class="text-xs text-gray-500 mt-1">只需 1 分钟即可将本页面部署到网络，全场观众扫码即可观看！</p>
-            </div>
-
-            <div class="space-y-4 text-xs text-gray-700">
-                <div class="p-3 bg-macaron-cream rounded-2xl border border-macaron-yellow">
-                    <h4 class="font-bold text-amber-800 text-sm mb-1">方案 1：使用 Netlify Drop (最简单/零代码)</h4>
-                    <ol class="list-decimal pl-4 space-y-1">
-                        <li>在 VS Code 中把这份代码保存为文件名 <b>index.html</b>。</li>
-                        <li>打开网址 <a href="https://app.netlify.com/drop" target="_blank" class="text-blue-600 underline font-bold">app.netlify.com/drop</a>。</li>
-                        <li>将包含 `index.html` 的文件夹拖拽上传到页面中。</li>
-                        <li>Netlify 会立即生成一个网址（如：`big-eater.netlify.app`），分享给观众即可！</li>
-                    </ol>
-                </div>
-
-                <div class="p-3 bg-macaron-softPink/50 rounded-2xl border border-macaron-pink">
-                    <h4 class="font-bold text-macaron-accent text-sm mb-1">方案 2：使用 GitHub Pages / Vercel</h4>
-                    <ol class="list-decimal pl-4 space-y-1">
-                        <li>在 GitHub 新建仓库（Repository）并将代码 Push 提交。</li>
-                        <li>在仓库的 <b>Settings -> Pages</b> 中将 Source 设置为 `main` 分支。</li>
-                        <li>发布后即可获得免费的 HTTPS 官方访问网址。</li>
-                    </ol>
-                </div>
-            </div>
-
-            <button onclick="closeDeployGuide()" class="w-full mt-5 py-3 bg-macaron-pink text-white font-bold rounded-2xl shadow-sm">
-                我知道了，开始比赛！
-            </button>
         </div>
     </div>
 
@@ -767,16 +721,7 @@ function initLocalData() {
             }
         }
 
-        // Deploy Guide Modal Helpers
-        function openDeployGuide() {
-            document.getElementById('deploy-modal').classList.remove('hidden');
-        }
-
-        function closeDeployGuide() {
-            document.getElementById('deploy-modal').classList.add('hidden');
-        }
-
-        // Toast Helper
+// Toast Helper
         function showToast(msg, icon = '✨') {
             const toast = document.getElementById('toast');
             document.getElementById('toast-message').textContent = msg;
