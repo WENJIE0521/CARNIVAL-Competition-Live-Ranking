@@ -111,7 +111,7 @@
                             <span class="w-2 h-2 rounded-full bg-green-500 animate-ping"></span> 实时同步中
                         </span>
                     </h1>
-                    <p class="text-xs text-gray-500">限时 5 分钟 · 谁是终极吃货王！</p>
+                    <p class="text-xs text-gray-500">实时排行榜 · 谁是终极吃货王！</p>
                 </div>
             </div>
 
@@ -143,38 +143,6 @@
 
     <!-- Main Container -->
     <main class="max-w-6xl mx-auto px-4 mt-6 flex-grow w-full">
-
-        <!-- 5-MINUTE MASTER CONTEST TIMER BANNER -->
-        <div class="bg-gradient-to-r from-macaron-cream via-macaron-softPink to-macaron-purple p-5 rounded-3xl border-4 border-macaron-pink shadow-card mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div class="flex items-center gap-4 text-center sm:text-left">
-                <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm border-2 border-macaron-pink">
-                    ⏱️
-                </div>
-                <div>
-                    <h2 class="font-bold text-lg text-macaron-text font-zcool flex items-center gap-2 justify-center sm:justify-start">
-                        5 分钟比赛官方总倒计时
-                    </h2>
-                    <p class="text-xs text-gray-600">全场统一限时 5 分钟，计时结束即为最终比赛成绩！</p>
-                </div>
-            </div>
-
-            <!-- Master Timer Display & Admin Controls -->
-            <div class="flex items-center gap-4">
-                <div id="timer-display-box" class="bg-white/90 border-3 border-macaron-pink px-6 py-2 rounded-2xl shadow-inner text-center">
-                    <span id="contest-timer-text" class="font-mono text-3xl font-black text-macaron-accent tracking-wider">05:00</span>
-                    <div id="timer-status-tag" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">准备就绪</div>
-                </div>
-
-                <div id="admin-timer-controls" class="hidden flex flex-col gap-1.5">
-                    <button id="btn-timer-start" onclick="toggleContestTimer()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1">
-                        <i class="fa-solid fa-play"></i> 开始比赛
-                    </button>
-                    <button onclick="resetContestTimer()" class="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1">
-                        <i class="fa-solid fa-rotate-left"></i> 重置 05:00
-                    </button>
-                </div>
-            </div>
-        </div>
 
         <!-- ================= VIEW 1: LIVE LEADERBOARD (PUBLIC) ================= -->
         <section id="view-live" class="space-y-6">
@@ -411,12 +379,7 @@
         let participants = [];
         let activeView = 'live';
 
-        // Timer State (5 Minutes = 300 Seconds)
-        let timerSeconds = 300;
-        let timerInterval = null;
-        let isTimerRunning = false;
-
-        function initLocalData() {
+function initLocalData() {
             const stored = localStorage.getItem('bigEater_5min_participants');
             if (stored) {
                 try { participants = JSON.parse(stored); } catch (e) { participants = []; }
@@ -445,10 +408,6 @@
             }
         }
 
-        function saveLocalData() {
-            localStorage.setItem('bigEater_5min_participants', JSON.stringify(participants));
-            try { syncChannel.postMessage({ type: 'DATA_UPDATED', participants }); } catch(e){}
-        }
 
         syncChannel.onmessage = (event) => {
             if (event.data && event.data.type === 'DATA_UPDATED') {
@@ -529,7 +488,6 @@
 
         function updateAdminStatusUI() {
             const box = document.getElementById('admin-status-box');
-            const timerAdminControls = document.getElementById('admin-timer-controls');
             if (isAdminLoggedIn) {
                 box.innerHTML = `
                     <div class="flex items-center gap-2">
@@ -541,77 +499,13 @@
                         </button>
                     </div>
                 `;
-                timerAdminControls.classList.remove('hidden');
             } else {
                 box.innerHTML = `
                     <button onclick="openPasswordModal()" class="px-3 py-2 bg-macaron-cream hover:bg-macaron-yellow text-amber-800 border-2 border-macaron-yellow font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm">
                         <i class="fa-solid fa-lock"></i> 解锁后台
                     </button>
                 `;
-                timerAdminControls.classList.add('hidden');
             }
-        }
-
-        // 5-Minute Master Contest Timer Logic
-        function updateTimerDisplay() {
-            const mins = Math.floor(timerSeconds / 60);
-            const secs = timerSeconds % 60;
-            const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-            document.getElementById('contest-timer-text').textContent = formatted;
-
-            const statusTag = document.getElementById('timer-status-tag');
-            if (isTimerRunning) {
-                statusTag.textContent = "⏱️ 比赛进行中";
-                statusTag.className = "text-[10px] font-bold text-emerald-600 uppercase tracking-widest";
-            } else if (timerSeconds === 0) {
-                statusTag.textContent = "🔔 5分钟比赛已结束！";
-                statusTag.className = "text-[10px] font-bold text-red-500 uppercase tracking-widest animate-bounce";
-            } else {
-                statusTag.textContent = "准备就绪";
-                statusTag.className = "text-[10px] font-bold text-gray-400 uppercase tracking-widest";
-            }
-        }
-
-        function toggleContestTimer() {
-            const btn = document.getElementById('btn-timer-start');
-            if (isTimerRunning) {
-                // Pause
-                clearInterval(timerInterval);
-                isTimerRunning = false;
-                btn.innerHTML = `<i class="fa-solid fa-play"></i> 继续比赛`;
-                btn.className = "px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1";
-            } else {
-                // Start
-                if (timerSeconds <= 0) timerSeconds = 300;
-                isTimerRunning = true;
-                btn.innerHTML = `<i class="fa-solid fa-pause"></i> 暂停计时`;
-                btn.className = "px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1";
-                
-                timerInterval = setInterval(() => {
-                    if (timerSeconds > 0) {
-                        timerSeconds--;
-                        updateTimerDisplay();
-                    } else {
-                        clearInterval(timerInterval);
-                        isTimerRunning = false;
-                        updateTimerDisplay();
-                        triggerConfetti();
-                        showToast('⏰ 5分钟比赛时间到！比赛结束！', '🏆');
-                    }
-                }, 1000);
-            }
-            updateTimerDisplay();
-        }
-
-        function resetContestTimer() {
-            clearInterval(timerInterval);
-            isTimerRunning = false;
-            timerSeconds = 300;
-            const btn = document.getElementById('btn-timer-start');
-            btn.innerHTML = `<i class="fa-solid fa-play"></i> 开始比赛`;
-            btn.className = "px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-1";
-            updateTimerDisplay();
-            showToast('比赛计时器已重置为 05:00', '⏱️');
         }
 
         // Render Live Leaderboard (PUBLIC)
