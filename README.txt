@@ -1,30 +1,36 @@
-BIG EATER TWO-PORTAL WEBSITE
+BIG EATER CHALLENGE: FIREBASE-CONNECTED TWO PORTALS
 
-Public: / (index.html)
-Staff: /admin/ (admin/index.html)
+Firebase config has ALREADY been added to both website pages.
 
-SETUP
-1. Firebase Console > Create Project > Register Web App.
-2. Firestore Database > Create Database (production mode).
-3. Authentication > Sign-in method > Email/Password Enable.
-4. Authentication > Users > Add user with your chosen admin email and strong password. Copy UID.
-5. Set identical firebaseConfig values in BOTH index.html and admin/index.html.
-   In admin/index.html, set ADMIN_LOGIN_EMAIL to the admin email created in step 4.
-   This email will be used internally. Staff only see a password field.
-6. In firestore.rules replace REPLACE_WITH_ADMIN_UID with the UID of your admin user.
-7. Firestore Database > Rules > paste rules > Publish.
-8. Upload this folder contents to your Vercel static-site repo, commit, deploy.
-9. Visit /admin/ to log in; visit / to check live leaderboard.
+ONE REQUIRED STEP BEFORE DEPLOY:
+Open admin/index.html using a text editor and find:
+  const ADMIN_LOGIN_EMAIL = "REPLACE_WITH_ADMIN_EMAIL@example.com";
+Replace that quoted string with the EXACT email you created in Firebase Authentication > Users.
+Do NOT put a password in this file. Admin UI is password-only.
 
-SECURITY
-Do not share admin password. Firebase web app config is not a secret.
-Never store phone numbers in public participants collection.
-The public page does not load firebase-auth or admin functionality.
-The admin page requires Authentication, and Security Rules enforce writes.
+FIRESTORE RULES:
+You already published Firestore rules. The rules must grant public READ access to
+/participants/{participantId}, and UID-specific admin WRITE access there.
+/participantPrivate/{participantId} must be admin READ/WRITE only.
+This archive also includes firestore.rules as a more restrictive optional version.
+If using that file, replace REPLACE_WITH_ADMIN_UID with your own Authentication UID
+and Publish the rules in Firebase Console > Firestore Database > Rules.
+Do NOT publish rules containing placeholder UID.
 
-NOTE
-Data in previous localStorage is not migrated automatically.
-The site has placeholders until YOUR firebaseConfig and UID are supplied.
+DEPLOY TO VERCEL:
+Push index.html AND the entire admin/ folder to your existing static site's
+repository, keeping folder structure. Vercel should serve / and /admin/.
+If your site is built from a framework or has a custom build, deployment may differ.
 
-PASSWORD CHANGES
-Change the admin account password in Firebase Authentication. Never hardcode the password into HTML or JavaScript.
+TEST:
+1. Public URL / should load without logging in.
+2. Admin URL /admin/ should show a password-only login.
+3. After logging in, create a test participant and adjust bowl count.
+4. Verify another device sees live updates.
+5. Verify public visitors cannot see phone numbers or modify data.
+
+SECURITY:
+Firebase config is public client configuration, NOT an admin password.
+Do NOT share the admin password. Login account email is visible in HTML source.
+Use a unique strong password and avoid reusing the administrator account elsewhere.
+Legacy browser localStorage participant records are NOT migrated automatically.
