@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.uid == "REPLACE_WITH_ADMIN_UID";
+    }
+    function validPublic() {
+      return request.resource.data.keys().hasOnly(['name', 'ig', 'table', 'totalBowls'])
+        && request.resource.data.keys().hasAll(['name', 'ig', 'table', 'totalBowls'])
+        && request.resource.data.name is string
+        && request.resource.data.ig is string
+        && request.resource.data.table is string
+        && request.resource.data.totalBowls is int
+        && request.resource.data.totalBowls >= 0;
+    }
+    match /participants/{id} {
+      allow read: if true;
+      allow create: if isAdmin() && validPublic() && request.resource.data.totalBowls == 0;
+      allow update: if isAdmin() && validPublic();
+      allow delete: if isAdmin();
+    }
+    match /participantPrivate/{id} {
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['phone'])
+        && request.resource.data.keys().hasAll(['phone'])
+        && request.resource.data.phone is string;
+    }
+  }
+}
