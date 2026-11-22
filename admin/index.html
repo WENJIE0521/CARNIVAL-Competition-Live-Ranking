@@ -179,6 +179,17 @@
 <i class="fa-solid fa-trash-can"></i> Clear All Participants
                             </button>
 </div>
+<!-- Fast participant search, filters only the admin cards. -->
+<div class="mb-4">
+  <label for="admin-search" class="block text-xs font-bold text-gray-600 mb-2">Search Participants</label>
+  <div class="relative">
+    <i class="fa-solid fa-magnifying-glass absolute left-4 top-3 text-macaron-accent"></i>
+    <input type="search" id="admin-search" oninput="renderAdminConsole()"
+      placeholder="Search name, phone, Instagram or No."
+      class="w-full pl-11 pr-4 py-2.5 rounded-2xl border-2 border-macaron-softPink focus:border-macaron-pink focus:outline-none text-sm" />
+  </div>
+  <p id="admin-search-count" class="text-xs text-gray-400 mt-1.5" aria-live="polite"></p>
+</div>
 <!-- Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="admin-cards-grid">
 <!-- Rendered via JS -->
@@ -302,6 +313,10 @@
         const db = firebase.firestore();
         const publicRef = db.collection('participants');
         const privateRef = db.collection('participantPrivate');
+        const uniqueNameRef = db.collection('uniqueParticipantNames');
+        const uniquePhoneRef = db.collection('uniqueParticipantPhones');
+        let publicReady = false;
+        let privateReady = false;
         let isAdminLoggedIn = false;
         let participants = [];
         let privatePhones = {};
@@ -322,6 +337,7 @@
         function startPublicSync() {
             publicRef.onSnapshot(snapshot => {
                 participants = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+                publicReady = true;
                 refreshCurrentView();
                 setSyncBadge(true, 'Live Syncing');
             }, err => { setSyncBadge(false, 'Sync Error'); syncError(err); });
@@ -330,10 +346,12 @@
             isAdminLoggedIn = !!user;
             if (unsubscribePrivate) { unsubscribePrivate(); unsubscribePrivate = null; }
             privatePhones = {};
+            privateReady = false;
             if (user) {
                 unsubscribePrivate = privateRef.onSnapshot(snapshot => {
                     privatePhones = {};
                     snapshot.forEach(doc => { privatePhones[doc.id] = doc.data().phone || ''; });
+                    privateReady = true;
                     if (activeView === 'admin') renderAdminConsole();
                 }, syncError);
             } else if (activeView === 'admin') switchView('live');
@@ -543,6 +561,7 @@
             grid.innerHTML = '';
 
             if (participants.length === 0) {
+                document.getElementById('admin-search-count').textContent = 'Showing 0 of 0 participants';
                 grid.innerHTML = `
                     <div class="col-span-full text-center py-10 text-gray-400">
                         No participants registered yet. Use the form on the left to add your first contestant!
@@ -551,7 +570,20 @@
                 return;
             }
 
-            participants.forEach(p => {
+            const searchValue = (document.getElementById('admin-search')?.value || '').trim().toLocaleLowerCase();
+            const searchDigits = searchValue.replace(/\D/g, '');
+            const filtered = participants.filter(p => {
+                const fields = [p.name, p.ig, p.table, privatePhones[p.id]].map(v => String(v || '').toLocaleLowerCase());
+                return !searchValue || fields.some(v => v.includes(searchValue)) ||
+                    (searchDigits && normalizePhone(privatePhones[p.id]).includes(searchDigits));
+            });
+            document.getElementById('admin-search-count').textContent =
+                `Showing ${filtered.length} of ${participants.length} participants`;
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center py-8 text-gray-400 font-bold">No matching participant found.</div>';
+                return;
+            }
+            filtered.forEach(p => {
                 const cardHtml = `
                     <div class="bg-macaron-cream/30 rounded-2xl p-4 border-2 border-macaron-pink flex flex-col justify-between space-y-3 shadow-sm hover:shadow-md transition-shadow">
                         <!-- Top Info -->
@@ -638,6 +670,43 @@
                 showToast(`${p.name}: score updated`, '🍲');
             } catch (err) { syncError(err); }
         }
+        // Name comparisons ignore capitalization, surrounding and repeated spaces.
+        // Phone comparisons ignore punctuation and normalize +60/60 to local 0 prefix.
+        function normalizeName(value) {
+            return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+        }
+        function normalizePhone(value) {
+            let digits = String(value || '').replace(/\D/g, '');
+            if (digits.startsWith('60')) digits = '0' + digits.slice(2);
+            return digits;
+        }
+        function nameKey(name) { return 'n_' + encodeURIComponent(normalizeName(name)); }
+        function phoneKey(phone) { return 'p_' + normalizePhone(phone); }
+        function duplicateMessage(name, phone, excludeId = null) {
+            const n = normalizeName(name), ph = normalizePhone(phone);
+            const foundName = participants.find(p => p.id !== excludeId && normalizeName(p.name) === n);
+            const foundPhone = participants.find(p => p.id !== excludeId && normalizePhone(privatePhones[p.id]) === ph);
+            if (foundName && foundPhone) return 'This name and phone number are already registered. Existing participant: ' + foundName.name;
+            if (foundName) return 'This participant name is already registered: ' + foundName.name;
+            if (foundPhone) return 'This phone number is already registered under: ' + foundPhone.name;
+            return null;
+        }
+        function duplicateAlert(message) {
+            openAlertModal('Already Registered / 已有该用户', message, '⚠️');
+        }
+        function validateNewIdentity(name, phone, excludeId = null) {
+            if (!publicReady || !privateReady) {
+                openAlertModal('Still Syncing', 'Please wait until participants and private phone records finish loading.');
+                return false;
+            }
+            if (!normalizeName(name) || normalizeName(name).length > 100 || !/^0\d{8,10}$/.test(normalizePhone(phone))) {
+                openAlertModal('Invalid Details', 'Please use a name up to 100 characters and a valid Malaysian phone number.');
+                return false;
+            }
+            const error = duplicateMessage(name, phone, excludeId);
+            if (error) { duplicateAlert(error); return false; }
+            return true;
+        }
         async function handleRegister(e) {
             e.preventDefault();
             if (!requireAdmin()) return;
@@ -649,16 +718,30 @@
                 openAlertModal('Missing Fields', 'Please fill in all required fields marked with * !');
                 return;
             }
+            if (!validateNewIdentity(name, phone)) return;
+            const submit = document.querySelector('#register-form button[type="submit"]');
+            submit.disabled = true;
             try {
-                const ref = publicRef.doc();
-                const batch = db.batch();
-                batch.set(ref, { name, ig, table, totalBowls: 0 });
-                batch.set(privateRef.doc(ref.id), { phone });
-                await batch.commit();
+                const participant = publicRef.doc();
+                const nameDocument = uniqueNameRef.doc(nameKey(name));
+                const phoneDocument = uniquePhoneRef.doc(phoneKey(phone));
+                await db.runTransaction(async tx => {
+                    const [existingName, existingPhone] = await Promise.all([
+                        tx.get(nameDocument), tx.get(phoneDocument)
+                    ]);
+                    if (existingName.exists || existingPhone.exists) throw new Error('DUPLICATE_PARTICIPANT');
+                    tx.set(nameDocument, { participantId: participant.id });
+                    tx.set(phoneDocument, { participantId: participant.id });
+                    tx.set(participant, { name, ig, table, totalBowls: 0 });
+                    tx.set(privateRef.doc(participant.id), { phone });
+                });
                 document.getElementById('register-form').reset();
                 openAlertModal('Registration Successful!', `Participant "${name}" registered under No. ${table}!`, '✅');
                 triggerConfetti();
-            } catch (err) { syncError(err); }
+            } catch (err) {
+                if (err.message === 'DUPLICATE_PARTICIPANT') duplicateAlert('This name or phone number is already registered. Please search for the existing participant.');
+                else syncError(err);
+            } finally { submit.disabled = false; }
         }
         function deleteParticipant(id) {
             if (!requireAdmin()) return;
@@ -667,10 +750,15 @@
             openConfirmModal('Delete Participant?', `Delete participant [${p.name}]?`,
                 'Yes, Delete', '🗑️', async function () {
                     try {
-                        const batch = db.batch();
-                        batch.delete(publicRef.doc(id));
-                        batch.delete(privateRef.doc(id));
-                        await batch.commit();
+                        const oldNameDoc = uniqueNameRef.doc(nameKey(p.name));
+                        const oldPhoneDoc = uniquePhoneRef.doc(phoneKey(privatePhones[id] || ''));
+                        await db.runTransaction(async tx => {
+                            const [ns, ps] = await Promise.all([tx.get(oldNameDoc), tx.get(oldPhoneDoc)]);
+                            if (ns.exists && ns.data().participantId === id) tx.delete(oldNameDoc);
+                            if (ps.exists && ps.data().participantId === id) tx.delete(oldPhoneDoc);
+                            tx.delete(publicRef.doc(id));
+                            tx.delete(privateRef.doc(id));
+                        });
                         showToast(`Deleted ${p.name}`, '🗑️');
                     } catch (err) { syncError(err); }
                 });
@@ -697,25 +785,49 @@
             const ig = document.getElementById('edit-ig').value.trim().replace(/^@/, '');
             const phone = document.getElementById('edit-phone').value.trim();
             const table = document.getElementById('edit-table').value.trim();
-            if (!name || !phone || !table) return;
+            if (!name || !phone || !table || !validateNewIdentity(name, phone, id)) return;
+            const p = participants.find(item => item.id === id);
+            if (!p) return;
+            const oldPhone = privatePhones[id] || '';
+            const oldNameDoc = uniqueNameRef.doc(nameKey(p.name));
+            const oldPhoneDoc = uniquePhoneRef.doc(phoneKey(oldPhone));
+            const newNameDoc = uniqueNameRef.doc(nameKey(name));
+            const newPhoneDoc = uniquePhoneRef.doc(phoneKey(phone));
             try {
-                const batch = db.batch();
-                batch.update(publicRef.doc(id), { name, ig, table });
-                batch.set(privateRef.doc(id), { phone });
-                await batch.commit();
+                await db.runTransaction(async tx => {
+                    // All reads before all writes, including ownership verification.
+                    const [newNameSnap, newPhoneSnap, oldNameSnap, oldPhoneSnap] = await Promise.all([
+                        tx.get(newNameDoc), tx.get(newPhoneDoc), tx.get(oldNameDoc), tx.get(oldPhoneDoc)
+                    ]);
+                    if ((newNameSnap.exists && newNameSnap.data().participantId !== id) ||
+                        (newPhoneSnap.exists && newPhoneSnap.data().participantId !== id)) {
+                        throw new Error('DUPLICATE_PARTICIPANT');
+                    }
+                    tx.set(newNameDoc, { participantId: id });
+                    tx.set(newPhoneDoc, { participantId: id });
+                    if (oldNameDoc.id !== newNameDoc.id && oldNameSnap.exists && oldNameSnap.data().participantId === id) tx.delete(oldNameDoc);
+                    if (oldPhoneDoc.id !== newPhoneDoc.id && oldPhoneSnap.exists && oldPhoneSnap.data().participantId === id) tx.delete(oldPhoneDoc);
+                    tx.update(publicRef.doc(id), { name, ig, table });
+                    tx.set(privateRef.doc(id), { phone });
+                });
                 closeEditModal();
                 openAlertModal('Update Successful!', `Updated details for participant "${name}"!`, '✅');
-            } catch (err) { syncError(err); }
+            } catch (err) {
+                if (err.message === 'DUPLICATE_PARTICIPANT') duplicateAlert('This name or phone number is already registered.');
+                else syncError(err);
+            }
         }
         async function clearAllParticipants() {
             if (!requireAdmin()) return;
             try {
                 // Firestore batches allow up to 500 writes. Each participant needs two deletes.
-                for (let i = 0; i < participants.length; i += 200) {
+                for (let i = 0; i < participants.length; i += 100) {
                     const batch = db.batch();
-                    participants.slice(i, i + 200).forEach(p => {
+                    participants.slice(i, i + 100).forEach(p => {
                         batch.delete(publicRef.doc(p.id));
                         batch.delete(privateRef.doc(p.id));
+                        batch.delete(uniqueNameRef.doc(nameKey(p.name)));
+                        if (privatePhones[p.id]) batch.delete(uniquePhoneRef.doc(phoneKey(privatePhones[p.id])));
                     });
                     await batch.commit();
                 }
